@@ -3,19 +3,18 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
-<title>Perfekte Fibonacci-Spirale</title>
+<title>Fibonacci-Spirale</title>
 <style>
 * { box-sizing: border-box; touch-action: none; margin: 0; padding: 0; }
 body, html { width: 100%; height: 100%; overflow: hidden; background: #0b0c10; }
 canvas { display: block; width: 100vw; height: 100vh; }
 #info {
   position: absolute; top: 12px; left: 12px;
-  background: rgba(11,12,16,0.85); padding: 10px 14px;
-  border-radius: 10px; pointer-events: none;
-  border: 1px solid #1f2833;
+  background: rgba(11,12,16,0.88); padding: 10px 14px;
+  border-radius: 10px; pointer-events: none; border: 1px solid #1f2833;
 }
 #info h1 { font-size: 13px; color: #66fcf1; font-family: system-ui; margin-bottom: 3px; }
-#info p { font-size: 11px; color: #c5a059; font-family: system-ui; line-height: 1.5; }
+#info p  { font-size: 11px; color: #c5a059; font-family: system-ui; line-height: 1.5; }
 </style>
 </head>
 <body>
@@ -26,156 +25,181 @@ canvas { display: block; width: 100vw; height: 100vh; }
 <canvas id="c"></canvas>
 <script>
 const canvas = document.getElementById('c');
-const ctx = canvas.getContext('2d');
-let scale = 30;
-let touchStartDist = 0, touchStartScale = 30;
+const ctx    = canvas.getContext('2d');
+let scale = 40;
+let touchStartDist = 0, touchStartScale = 40;
 
 function resize() {
-  canvas.width = window.innerWidth * devicePixelRatio;
+  canvas.width  = window.innerWidth  * devicePixelRatio;
   canvas.height = window.innerHeight * devicePixelRatio;
   ctx.resetTransform();
   ctx.scale(devicePixelRatio, devicePixelRatio);
   draw();
 }
 
+/* Fibonacci */
 function fib(n) {
   if (n <= 0) return 0;
   if (n === 1) return 1;
   let a = 0, b = 1;
-  for (let i = 2; i <= n; i++) { let c = a+b; a=b; b=c; }
+  for (let i = 2; i <= n; i++) { const c = a+b; a=b; b=c; }
   return b;
 }
 
-// Baut alle Quadrate auf. Reihenfolge: rechts → oben → links → unten (CCW)
-// Jedes neue Quadrat wird an die passende Seite des Gesamtblocks angelegt.
-// Gibt { x, y, size } zurück (x/y = oben-links).
-function buildSquares(count) {
-  // Starte mit zwei 1x1-Quadraten nebeneinander
-  // Q1 bei (0,0), Q2 bei (1,0) — dann wächst die Spirale CCW
-  const sq = [];
-  // Referenzblock (Bounding Box des bisherigen Gesamtblocks)
-  let bx = 0, by = 0, bw = 0, bh = 0;
+/*
+  Quadrat-Layout: klassische Fibonacci-Tiling, Spirale dreht im Uhrzeigersinn.
+  Wir starten mit Q1=1×1 bei Ursprung und legen jedes neue Quadrat so an,
+  dass die Spirale CW dreht:
+    n%4==1 → rechts anlegen  (Bogen: Mitte = unten-links  des neuen Sq)
+    n%4==2 → oben anlegen    (Bogen: Mitte = unten-rechts des neuen Sq)
+    n%4==3 → links anlegen   (Bogen: Mitte = oben-rechts  des neuen Sq)
+    n%4==0 → unten anlegen   (Bogen: Mitte = oben-links   des neuen Sq)
+
+  Bogenmittelpunkt = die Ecke des neuen Quadrats, die auf dem bisherigen Block liegt.
+  Winkel: immer ein Viertelkreis CW (clockwise im math-space = CCW in Canvas, weil y-Achse zeigt nach unten).
+*/
+function buildTiling(count) {
+  const result = [];
+  let bx = 0, by = 0, bw = 0, bh = 0; // Bounding-Box des bisherigen Blocks
 
   for (let n = 1; n <= count; n++) {
     const s = fib(n);
-    let x, y;
-    // Platzierungsrichtung: n=1→start, n=2→rechts, n=3→oben, n=4→links, n=5→unten, ...
+    let x, y, mx, my, startAngle, endAngle;
+
+    const side = ((n - 1) % 4); // 0=rechts, 1=oben, 2=links, 3=unten
+
     if (n === 1) {
       x = 0; y = 0;
       bx = 0; by = 0; bw = s; bh = s;
     } else {
-      const dir = ((n - 2) % 4); // 0=rechts, 1=oben, 2=links, 3=unten
-      if (dir === 0) { x = bx + bw; y = by + bh - s; }
-      else if (dir === 1) { x = bx + bw - s; y = by - s; }
-      else if (dir === 2) { x = bx - s; y = by; }
-      else              { x = bx; y = by + bh; }
-
-      const nx = Math.min(bx, x);
-      const ny = Math.min(by, y);
-      const nw = Math.max(bx + bw, x + s) - nx;
-      const nh = Math.max(by + bh, y + s) - ny;
-      bx = nx; by = ny; bw = nw; bh = nh;
+      if (side === 0) {        // rechts
+        x = bx + bw; y = by + bh - s;
+      } else if (side === 1) { // oben
+        x = bx + bw - s; y = by - s;
+      } else if (side === 2) { // links
+        x = bx - s; y = by;
+      } else {                 // unten
+        x = bx; y = by + bh;
+      }
+      const nx = Math.min(bx, x), ny = Math.min(by, y);
+      bw = Math.max(bx + bw, x + s) - nx;
+      bh = Math.max(by + bh, y + s) - ny;
+      bx = nx; by = ny;
     }
-    sq.push({ x, y, size: s });
-  }
-  return sq;
-}
 
-// Für jeden Bogen: Mittelpunkt = die "innere" Ecke des Quadrats (wo die Spirale dreht).
-// Spirale dreht CCW. Reihenfolge der Bögen bestimmt Start/End-Winkel.
-// n=1: dir=start, Bogen von oben-rechts nach unten-rechts → Mitte = oben-links (0,0)? 
-// Wir leiten es geometrisch ab: der Mittelpunkt ist die Ecke, die am nächsten zur Spiralmitte liegt.
-// Pattern (basierend auf Platzierungsrichtung):
-//   n=1 (erstes): Mitte = unten-links (x, y+s), start=−π/2, end=0
-//   n=2 (rechts):  Mitte = unten-links (x, y+s), start=π, end=−π/2
-//   n=3 (oben):   Mitte = unten-rechts (x+s, y+s), start=π/2, end=π  (ccw: false → aber Winkel absteigend)
-//   n=4 (links):  Mitte = oben-rechts (x+s, y), start=0, end=π/2
-//   n=5 (unten):  → wie n=1 usw.
-// 
-// Einfacher: Wir verfolgen den aktuellen Endpunkt der Spirale und berechnen den Mittelpunkt
-// als den Punkt, der genau "size" vom Endpunkt entfernt ist und senkrecht zur Tangentenrichtung.
+    /*
+      Bogenmittelpunkt und Winkel (Canvas-Koordinaten, y zeigt nach unten):
+      Clockwise-Spirale bedeutet in Canvas-math (wo CW = positive Winkelrichtung):
+        side=0 (rechts angelegt): Mitte = unten-links (x, y+s)
+          Bogen von oben (−π/2) nach links (π) ... nein.
+          
+      Besser: Wir merken uns den aktuellen "Stift-Punkt" der Spirale und berechnen
+      den Mittelpunkt als: Stift + Rotation um den Mittelpunkt = nächster Punkt.
+      
+      Für CW-Spirale (in Canvas):
+        side=0: Mitte=(x, y+s),     von −π/2 bis 0         (CW: false in arc, da arc CCW ist bei false... 
+                                                               Achtung: arc(x,y,r,start,end,anticlockwise)
+                                                               false = clockwise in Canvas!)
+        side=1: Mitte=(x+s, y+s),   von π    bis −π/2  (= 3π/2 ... wrap)
+        side=2: Mitte=(x+s, y),     von 0    bis π/2   ... 
 
-function drawSpiral(squares) {
-  if (squares.length === 0) return;
-  ctx.beginPath();
-  ctx.strokeStyle = '#45f3ff';
-  ctx.lineWidth = 2 / scale;
+      Einfachste korrekte Herleitung über Stift-Tracking:
+    */
 
-  // Jedes Quadrat: Bogen-Mittelpunkt ist eine bestimmte Ecke.
-  // Für die CCW-Spirale mit unserer Platzierungsreihenfolge:
-  // Platzierungsdir für Quadrat n (n>=2): dir = (n-2)%4
-  // n=1: Sonderfall
-  // Ecken-Auswahl und Winkel:
-  //   n%4==1 (1,5,9,...):  Mitte=unten-links  (x,   y+s), start=3π/2, end=2π    (=0), ccw=false
-  //   n%4==2 (2,6,10,...): Mitte=oben-links   (x,   y  ), start=0,    end=π/2,  ccw=false  
-  //   n%4==3 (3,7,11,...): Mitte=oben-rechts  (x+s, y  ), start=π/2,  end=π,    ccw=false
-  //   n%4==0 (4,8,12,...): Mitte=unten-rechts (x+s, y+s), start=π,    end=3π/2, ccw=false
-
-  const defs = {
-    1: (sq) => ({ mx: sq.x,         my: sq.y + sq.size, a0: -Math.PI/2, a1: 0          }),
-    2: (sq) => ({ mx: sq.x,         my: sq.y,           a0: 0,          a1: Math.PI/2  }),
-    3: (sq) => ({ mx: sq.x+sq.size, my: sq.y,           a0: Math.PI/2,  a1: Math.PI    }),
-    0: (sq) => ({ mx: sq.x+sq.size, my: sq.y+sq.size,   a0: Math.PI,    a1: 3*Math.PI/2}),
-  };
-
-  let first = true;
-  for (let i = 0; i < squares.length; i++) {
-    const sq = squares[i];
-    const ds = sq.size * scale;
-    if (ds < 0.05 || ds > window.innerWidth * 30) continue;
-    const key = (i + 1) % 4; // i+1 = n
-    const def = defs[key](sq);
-    if (first) {
-      ctx.moveTo(def.mx + sq.size * Math.cos(def.a0), def.my + sq.size * Math.sin(def.a0));
-      first = false;
+    // Bogenmittelpunkt = die innere Ecke (am Block anliegende Ecke)
+    if (side === 0) {
+      mx = x;     my = y + s;  // unten-links
+      startAngle = -Math.PI / 2;
+      endAngle   = 0;
+    } else if (side === 1) {
+      mx = x + s; my = y + s;  // unten-rechts
+      startAngle = Math.PI;
+      endAngle   = -Math.PI / 2; // = 3π/2 wraparound, aber arc kümmert sich darum
+    } else if (side === 2) {
+      mx = x + s; my = y;      // oben-rechts
+      startAngle = Math.PI / 2;
+      endAngle   = Math.PI;
+    } else {
+      mx = x;     my = y;      // oben-links
+      startAngle = 0;
+      endAngle   = Math.PI / 2;
     }
-    ctx.arc(def.mx, def.my, sq.size, def.a0, def.a1, false);
+
+    result.push({ x, y, size: s, mx, my, startAngle, endAngle });
   }
-  ctx.stroke();
+  return result;
 }
 
 function draw() {
   const W = window.innerWidth, H = window.innerHeight;
   ctx.fillStyle = '#0b0c10';
   ctx.fillRect(0, 0, W, H);
+
   ctx.save();
   ctx.translate(W / 2, H / 2);
-  ctx.scale(scale, scale);
+  ctx.scale(scale, -scale); // ← Y-Achse spiegeln! Jetzt ist oben wirklich oben.
 
-  const maxN = Math.min(Math.floor(Math.log2(scale + 2) * 4) + 10, 75);
-  const squares = buildSquares(maxN);
+  // Anzahl Quadrate logarithmisch zum Zoom
+  const maxN = Math.min(Math.floor(Math.log2(scale + 2) * 5) + 8, 80);
+  const tiles = buildTiling(maxN);
 
-  // Quadrat-Rahmen
+  // Quadrate zeichnen
   ctx.strokeStyle = 'rgba(102,252,241,0.18)';
   ctx.lineWidth = 1 / scale;
-  for (const sq of squares) {
-    const ds = sq.size * scale;
+  for (const t of tiles) {
+    const ds = t.size * scale;
     if (ds < 0.05 || ds > W * 30) continue;
-    ctx.strokeRect(sq.x, sq.y, sq.size, sq.size);
+    ctx.strokeRect(t.x, t.y, t.size, t.size);
   }
 
-  // Zahlen
-  for (const sq of squares) {
-    const ds = sq.size * scale;
-    if (ds < 28 || ds > W * 5) continue;
+  // Zahlen (müssen Y-flip rückgängig machen)
+  ctx.save();
+  for (const t of tiles) {
+    const ds = t.size * scale;
+    if (ds < 25 || ds > W * 5) continue;
+    ctx.save();
+    const cx = t.x + t.size / 2;
+    const cy = t.y + t.size / 2;
+    ctx.translate(cx, cy);
+    ctx.scale(1, -1); // Y zurückspiegeln für Text
     ctx.fillStyle = 'rgba(197,160,89,0.85)';
-    const fs = Math.max(8 / scale, sq.size * 0.14);
+    const fs = Math.max(8 / scale, t.size * 0.14);
     ctx.font = `bold ${fs}px sans-serif`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(sq.size, sq.x + sq.size / 2, sq.y + sq.size / 2);
+    ctx.fillText(t.size, 0, 0);
+    ctx.restore();
   }
+  ctx.restore();
 
-  // Spirale
-  drawSpiral(squares);
+  // Spirale: ein zusammenhängender Pfad
+  ctx.strokeStyle = '#45f3ff';
+  ctx.lineWidth = 2 / scale;
+  ctx.beginPath();
+  let pathStarted = false;
+  for (const t of tiles) {
+    const ds = t.size * scale;
+    if (ds < 0.01 || ds > W * 50) continue;
+    // arc(x, y, radius, startAngle, endAngle, anticlockwise)
+    // Mit gespiegelter Y-Achse: CW wird zu CCW, also anticlockwise=true
+    if (!pathStarted) {
+      const sx = t.mx + t.size * Math.cos(t.startAngle);
+      const sy = t.my + t.size * Math.sin(t.startAngle);
+      ctx.moveTo(sx, sy);
+      pathStarted = true;
+    }
+    ctx.arc(t.mx, t.my, t.size, t.startAngle, t.endAngle, true);
+  }
+  ctx.stroke();
 
   ctx.restore();
 }
 
+/* Zoom */
 window.addEventListener('wheel', e => {
   e.preventDefault();
   scale *= e.deltaY < 0 ? 1.1 : 1 / 1.1;
-  scale = Math.max(1e-10, Math.min(1e15, scale));
+  scale = Math.max(1e-8, Math.min(1e15, scale));
   draw();
 }, { passive: false });
 
@@ -183,8 +207,7 @@ canvas.addEventListener('touchstart', e => {
   if (e.touches.length === 2) {
     touchStartDist = Math.hypot(
       e.touches[0].clientX - e.touches[1].clientX,
-      e.touches[0].clientY - e.touches[1].clientY
-    );
+      e.touches[0].clientY - e.touches[1].clientY);
     touchStartScale = scale;
   }
 }, { passive: true });
@@ -193,8 +216,7 @@ canvas.addEventListener('touchmove', e => {
   if (e.touches.length === 2 && touchStartDist > 0) {
     const d = Math.hypot(
       e.touches[0].clientX - e.touches[1].clientX,
-      e.touches[0].clientY - e.touches[1].clientY
-    );
+      e.touches[0].clientY - e.touches[1].clientY);
     scale = touchStartScale * (d / touchStartDist);
     draw();
   }
