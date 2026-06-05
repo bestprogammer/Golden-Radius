@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
-    <title>Unendlicher Goldener Radius Zoom</title>
+    <title>Zentrierter Unendlicher Goldener Zoom</title>
     <style>
         * { box-sizing: border-box; touch-action: none; }
         body, html {
@@ -12,8 +12,8 @@
             width: 100%;
             height: 100%;
             overflow: hidden;
-            background-color: #111;
-            font-family: sans-serif;
+            background-color: #0b0c10;
+            font-family: system-ui, -apple-system, sans-serif;
             color: #fff;
         }
         canvas {
@@ -23,24 +23,25 @@
         }
         #info {
             position: absolute;
-            top: 20px;
-            left: 20px;
-            background: rgba(0,0,0,0.8);
-            padding: 12px;
-            border-radius: 8px;
+            top: 15px;
+            left: 15px;
+            background: rgba(11, 12, 16, 0.85);
+            padding: 12px 16px;
+            border-radius: 10px;
             pointer-events: none;
             max-width: 280px;
-            border: 1px solid #333;
+            border: 1px solid #1f2833;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
         }
-        h1 { margin: 0 0 5px 0; font-size: 14px; color: #ffd700; }
-        p { margin: 0; font-size: 11px; color: #ccc; line-height: 1.4; }
+        h1 { margin: 0 0 4px 0; font-size: 14px; color: #66fcf1; }
+        p { margin: 0; font-size: 11px; color: #c5a059; line-height: 1.4; }
     </style>
 </head>
 <body>
 
     <div id="info">
-        <h1>Unendliche Goldene Spirale</h1>
-        <p>📱 <b>2 Finger:</b> Zoomen & Skalieren<br>👆 <b>1 Finger / Ziehen:</b> Verschieben<br>🖱️ <b>Mausrad:</b> Zoomen</p>
+        <h1>Starrer Zentrums-Zoom</h1>
+        <p>📱 <b>2 Finger:</b> Zoomt starr in die Mitte<br>👆 <b>1 Finger:</b> Spirale verschieben<br>🖱️ <b>Mausrad:</b> Zoomt starr in die Mitte</p>
     </div>
 
     <canvas id="canvas"></canvas>
@@ -50,8 +51,12 @@
         const ctx = canvas.getContext('2d');
 
         const PHI = (1 + Math.sqrt(5)) / 2;
+        
+        // Asymptotischer Fixpunkt (Zentrum) der Goldenen Spirale
+        const CX = 1 + 1 / (PHI * Math.sqrt(5));
+        const CY = 1 / Math.sqrt(5);
 
-        let scale = 1;
+        let scale = 100; // Start-Zoom
         let offsetX = 0;
         let offsetY = 0;
         
@@ -69,35 +74,29 @@
             draw();
         }
 
-        // Schnelle Fibonacci-Berechnung via Binet-Formel zur Performance-Steigerung
-        function getFib(n) {
-            return Math.round((Math.pow(PHI, n) - Math.pow(-PHI, -n)) / Math.sqrt(5));
-        }
-
         function draw() {
-            ctx.fillStyle = '#111';
+            ctx.fillStyle = '#0b0c10';
             ctx.fillRect(0, 0, window.innerWidth, window.innerHeight);
 
             ctx.save();
+            // In die Bildschirmmitte schieben + Benutzer-Verschiebung
             ctx.translate(window.innerWidth / 2 + offsetX, window.innerHeight / 2 + offsetY);
             ctx.scale(scale, scale);
+            
+            // Verschiebe den Rotations- und Skalierungsmittelpunkt auf das mathematische Zentrum der Spirale
+            ctx.translate(-CX, -CY);
 
-            // Dynamisches Berechnungsfenster für den unendlichen Zoom
-            let minGen = 1;
-            let maxGen = 30;
-
-            if (scale > 1) {
-                let shift = Math.floor(Math.log(scale) / Math.log(PHI));
-                minGen += shift;
-                maxGen += shift;
-            }
+            // Bestimme dynamisch die Generationen basierend auf dem aktuellen Zoomfaktor
+            let baseGen = Math.floor(Math.log(scale) / Math.log(PHI));
+            let minGen = baseGen - 15;
+            let maxGen = baseGen + 20;
 
             let x = 0;
             let y = 0;
 
-            for (let i = 1; i < maxGen; i++) {
-                let size = getFib(i);
-                let dir = i % 4; // 0: rechts, 1: unten, 2: links, 3: oben
+            for (let i = 1; i <= maxGen; i++) {
+                let size = Math.pow(PHI, i - 1);
+                let dir = (i - 1) % 4; // 0: rechts, 1: unten, 2: links, 3: oben
 
                 let qx = x;
                 let qy = y;
@@ -108,53 +107,50 @@
                 else if (dir === 3) { y -= size; }
 
                 if (i >= minGen) {
-                    // Quadrate zeichnen
-                    ctx.strokeStyle = `rgba(255, 215, 0, ${Math.min(1, (maxGen - i) / 6)})`;
-                    ctx.lineWidth = 1 / scale;
-                    ctx.strokeRect(qx, qy, size, size);
-
-                    // Beschriftung (Fibonacci-Zahl)
                     let currentDisplaySize = size * scale;
-                    if (currentDisplaySize > 20 && currentDisplaySize < window.innerWidth * 1.5) {
-                        ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
-                        let fontSize = Math.max(11 / scale, size * 0.12);
-                        ctx.font = `${fontSize}px sans-serif`;
-                        ctx.textAlign = 'center';
-                        ctx.textBaseline = 'middle';
-                        ctx.fillText(size, qx + size / 2, qy + size / 2);
-                    }
 
-                    // Spirale zeichnen
-                    ctx.beginPath();
-                    ctx.strokeStyle = '#00e5ff';
-                    ctx.lineWidth = 2 / scale;
-                    
-                    if (dir === 0) ctx.arc(qx, qy + size, size, 1.5 * Math.PI, 0);
-                    else if (dir === 1) ctx.arc(qx, qy, size, 0, 0.5 * Math.PI);
-                    else if (dir === 2) ctx.arc(qx + size, qy, size, 0.5 * Math.PI, Math.PI);
-                    else if (dir === 3) ctx.arc(qx + size, qy + size, size, Math.PI, 1.5 * Math.PI);
-                    ctx.stroke();
+                    if (currentDisplaySize > 0.5 && currentDisplaySize < window.innerWidth * 5) {
+                        // Quadrate zeichnen
+                        ctx.strokeStyle = `rgba(102, 252, 241, ${Math.min(0.6, currentDisplaySize / 50)})`;
+                        ctx.lineWidth = 1 / scale;
+                        ctx.strokeRect(qx, qy, size, size);
+
+                        // Beschriftung der Quadrate
+                        if (currentDisplaySize > 25 && currentDisplaySize < window.innerWidth * 1.2) {
+                            ctx.fillStyle = 'rgba(197, 160, 89, 0.8)';
+                            let fontSize = Math.max(10 / scale, size * 0.12);
+                            ctx.font = `${fontSize}px monospace`;
+                            ctx.textAlign = 'center';
+                            ctx.textBaseline = 'middle';
+                            
+                            let label = size < 1 ? size.toFixed(2) : Math.round(size).toString();
+                            ctx.fillText(label, qx + size / 2, qy + size / 2);
+                        }
+
+                        // Goldene Spirale (Bogen)
+                        ctx.beginPath();
+                        ctx.strokeStyle = '#45f3ff';
+                        ctx.lineWidth = 2.5 / scale;
+                        if (dir === 0) ctx.arc(qx, qy + size, size, 1.5 * Math.PI, 0);
+                        else if (dir === 1) ctx.arc(qx, qy, size, 0, 0.5 * Math.PI);
+                        else if (dir === 2) ctx.arc(qx + size, qy, size, 0.5 * Math.PI, Math.PI);
+                        else if (dir === 3) ctx.arc(qx + size, qy + size, size, Math.PI, 1.5 * Math.PI);
+                        ctx.stroke();
+                    }
                 }
             }
             ctx.restore();
         }
 
-        // --- MAUS EVENTS (DESKTOP) ---
+        // --- MAUS EVENTS (ZENTRIERTER ZOOM) ---
         window.addEventListener('wheel', (e) => {
             e.preventDefault();
-            const zoomFactor = 1.12;
-            const mouseX = e.clientX - window.innerWidth / 2;
-            const mouseY = e.clientY - window.innerHeight / 2;
-
-            if (e.deltaY < 0) {
-                scale *= zoomFactor;
-                offsetX -= (mouseX - offsetX) * (zoomFactor - 1);
-                offsetY -= (mouseY - offsetY) * (zoomFactor - 1);
-            } else {
-                scale /= zoomFactor;
-                offsetX += (mouseX - offsetX) * (1 - 1 / zoomFactor);
-                offsetY += (mouseY - offsetY) * (1 - 1 / zoomFactor);
-            }
+            // Zoom-Faktor berechnen
+            const zoomFactor = e.deltaY < 0 ? 1.15 : 1 / 1.15;
+            
+            // Reiner Zentrums-Zoom: Multipliziert den Zoom direkt, ohne den Offset zu verschieben
+            scale *= zoomFactor;
+            
             draw();
         }, { passive: false });
 
@@ -173,7 +169,7 @@
 
         window.addEventListener('mouseup', () => isDragging = false);
 
-        // --- TOUCH EVENTS FÜR SMARTPHONES (KORRIGIERT) ---
+        // --- MOBILE TOUCH EVENTS (ZENTRIERTER ZOOM) ---
         canvas.addEventListener('touchstart', (e) => {
             if (e.touches.length === 1) {
                 isDragging = true;
@@ -181,6 +177,7 @@
                 startY = e.touches[0].clientY - offsetY;
             } else if (e.touches.length === 2) {
                 isDragging = false;
+                // Distanz zwischen den beiden Fingern für die Skalierung messen
                 touchStartDist = Math.hypot(
                     e.touches[0].clientX - e.touches[1].clientX,
                     e.touches[0].clientY - e.touches[1].clientY
@@ -200,22 +197,17 @@
                     e.touches[0].clientY - e.touches[1].clientY
                 );
                 
-                const midX = (e.touches[0].clientX + e.touches[1].clientX) / 2 - window.innerWidth / 2;
-                const midY = (e.touches[0].clientY + e.touches[1].clientY) / 2 - window.innerHeight / 2;
-
                 const newScale = touchStartScale * (dist / touchStartDist);
-                // Sicherheitsgrenzen für extremen Zoom
-                if (newScale > 0.01 && newScale < 1e15) {
-                    const scaleRatio = newScale / scale;
+                
+                // Zoom-Grenzen einhalten und starr auf die Mitte anwenden
+                if (newScale > 5 && newScale < 1e16) {
                     scale = newScale;
-                    offsetX -= (midX - offsetX) * (scaleRatio - 1);
-                    offsetY -= (midY - offsetY) * (scaleRatio - 1);
                     draw();
                 }
             }
         }, { passive: true });
 
-        canvas.addEventListener('touchend', () => { isDragging = false; touchStartDist = 0; });
+        canvas.addEventListener('touchend', () => { isDragging = false; });
         canvas.addEventListener('touchcancel', () => { isDragging = false; });
 
         window.addEventListener('resize', resize);
