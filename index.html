@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
-    <title>Perfekter Fibonacci Zentrums-Zoom</title>
+    <title>Perfekter Fibonacci Zoom</title>
     <style>
         * { box-sizing: border-box; touch-action: none; }
         body, html {
@@ -40,7 +40,7 @@
 
     <div id="info">
         <h1>Exakte Fibonacci-Spirale</h1>
-        <p>📱 <b>2 Finger:</b> Starres unendliches Zoomen<br>🖱️ <b>Mausrad:</b> Starres unendliches Zoomen<br>⚠️ <i>Stoppt strikt bei 1 (keine Nullen)</i></p>
+        <p>📱 <b>2 Finger:</b> Zoomen (Zentriert)<br>🖱️ <b>Mausrad:</b> Zoomen (Zentriert)<br>⚠️ <i>Stoppt strikt bei der innersten 1</i></p>
     </div>
 
     <canvas id="canvas"></canvas>
@@ -49,17 +49,12 @@
         const canvas = document.getElementById('canvas');
         const ctx = canvas.getContext('2d');
 
-        // Goldener Schnitt & Asymptotischer Pol (Fixpunkt) der exakten Fibonacci-Spirale
-        const PHI = (1 + Math.sqrt(5)) / 2;
-        const POLE_X = 0.27639320225; 
-        const POLE_Y = 0.72360679774;
-
-        // Skalierungsfaktor (Zoom)
-        let scale = 150; 
+        // Start-Skalierung
+        let scale = 30; 
         
-        // Touch-Gesten-Tracking
+        // Touch-Gesten-Tracking Variablen
         let touchStartDist = 0;
-        let touchStartScale = 150;
+        let touchStartScale = 30;
 
         function resize() {
             canvas.width = window.innerWidth * window.devicePixelRatio;
@@ -69,11 +64,11 @@
             draw();
         }
 
-        // Dynamische Generierung echter Fibonacci-Zahlen (Zahlfolge)
+        // Fibonacci-Folge (1, 1, 2, 3, 5, 8, 13, 21, ...)
         function getFib(n) {
-            if (n <= 0) return 1;
+            if (n <= 1) return 1;
             let a = 1, b = 1;
-            for (let i = 3; i <= n; i++) {
+            for (let i = 2; i < n; i++) {
                 let c = a + b;
                 a = b;
                 b = c;
@@ -81,39 +76,33 @@
             return b;
         }
 
-        // Berechnet die korrekte geometrische Anordnung nach dem Standard-Anbaumuster
-        function getSquarePosition(n) {
-            let x = 0, y = 0;
+        // Mathematisch exakte, klassische Anordnung der Quadrate (im Uhrzeigersinn)
+        function getSquare(n) {
             if (n === 1) return { x: 0, y: 0, size: 1, dir: 0 };
-            if (n === 2) return { x: 1, y: 0, size: 1, dir: 1 };
+            if (n === 2) return { x: 0, y: -1, size: 1, dir: 1 };
 
-            // Startkoordinaten für den iterativen Aufbau ab Box 1
-            let currentX = 0, currentY = 0;
-            
+            let x = 0;
+            let y = -1;
+
             for (let i = 3; i <= n; i++) {
-                let prevSize = getFib(i - 1);
-                let prevPrevSize = getFib(i - 2);
-                let currentSize = getFib(i);
-                let dir = (i - 1) % 4; // 0: rechts, 1: unten, 2: links, 3: oben
+                let fCurr = getFib(i);
+                let fPrev = getFib(i - 1);
+                let fPrevPrev = getFib(i - 2);
+                let step = (i - 1) % 4;
 
-                // Exakte relative Anbautranslationen der Quadrate
-                if (dir === 1) { // Unten anbauen
-                    currentY += prevPrevSize;
-                } else if (dir === 2) { // Links anbauen
-                    currentX -= currentSize;
-                } else if (dir === 3) { // Oben anbauen
-                    currentY -= currentSize;
-                    currentX -= (prevSize - currentSize);
-                } else if (dir === 0) { // Rechts anbauen
-                    currentX += prevSize;
-                    currentY -= (prevSize - currentPrevSize);
-                }
-                
-                if (i === n) {
-                    return { x: currentX, y: currentY, size: currentSize, dir: dir };
+                if (step === 2) { // Links anbauen
+                    x -= fCurr;
+                    y = y + fPrevPrev - fCurr;
+                } else if (step === 3) { // Unten anbauen
+                    y += fPrev;
+                } else if (step === 0) { // Rechts anbauen
+                    x += fPrev;
+                } else if (step === 1) { // Oben anbauen
+                    y -= fCurr;
                 }
             }
-            return { x: 0, y: 0, size: 1, dir: 0 };
+
+            return { x: x, y: y, size: getFib(n), dir: (n - 1) % 4 };
         }
 
         function draw() {
@@ -121,76 +110,70 @@
             ctx.fillRect(0, 0, window.innerWidth, window.innerHeight);
 
             ctx.save();
-            // 1. Schiebe den Ursprung in die exakte Mitte des Bildschirms
+            // Kamera genau auf die Mitte des Bildschirms setzen
             ctx.translate(window.innerWidth / 2, window.innerHeight / 2);
-            
-            // 2. Skaliere die gesamte Szene basierend auf dem Zoom
             ctx.scale(scale, scale);
-            
-            // 3. Zentriere die Kamera auf den unendlichen Fixpunkt (Pol) der Spirale
-            ctx.translate(-POLE_X, -POLE_Y);
 
-            // Bestimme das Sichtbarkeitsfenster der Quadrate anhand des aktuellen Zooms
-            let estimatedMaxGen = Math.floor(Math.log(scale) / Math.log(PHI)) + 5;
-            let maxGen = Math.max(15, estimatedMaxGen);
+            // Bestimme, wie viele Quadrate gezeichnet werden müssen basierend auf dem Zoom
+            let maxGen = Math.floor(Math.log(scale + 100) * 1.5) + 5;
+            if (maxGen < 10) maxGen = 10;
 
-            // WICHTIG: Die Schleife startet zwingend bei 1. Es gibt keine Generierung kleinerer Zahlen gegen 0!
+            // Schleife startet strikt bei 1 (Keine Nullen, keine Brüche!)
             for (let i = 1; i <= maxGen; i++) {
-                let rect = getSquarePosition(i);
-                let currentDisplaySize = rect.size * scale;
+                let s = getSquare(i);
+                let displaySize = s.size * scale;
 
-                // Rendere nur Quadrate, die überhaupt ins Display passen
-                if (currentDisplaySize > 0.5 && currentDisplaySize < window.innerWidth * 5) {
+                // Nur zeichnen, wenn es im sichtbaren Bereich liegt
+                if (displaySize > 0.5 && displaySize < window.innerWidth * 4) {
                     
-                    // Zeichne das exakt ausgerichtete Quadrat
-                    ctx.strokeStyle = `rgba(102, 252, 241, ${Math.min(0.6, currentDisplaySize / 40)})`;
+                    // Quadrate zeichnen
+                    ctx.strokeStyle = 'rgba(102, 252, 241, 0.4)';
                     ctx.lineWidth = 1 / scale;
-                    ctx.strokeRect(rect.x, rect.y, rect.size, rect.size);
+                    ctx.strokeRect(s.x, s.y, s.size, s.size);
 
-                    // Beschriftung: Zeigt NUR echte Fibonacci-Ganzzahlen an
-                    if (currentDisplaySize > 25 && currentDisplaySize < window.innerWidth * 1.2) {
+                    // Beschriftung der Quadrate (Ganzzahlen)
+                    if (displaySize > 20 && displaySize < window.innerWidth * 1.2) {
                         ctx.fillStyle = 'rgba(197, 160, 89, 0.9)';
-                        let fontSize = Math.max(10 / scale, rect.size * 0.14);
-                        ctx.font = `bold ${fontSize}px monospace`;
+                        let fontSize = Math.max(10 / scale, s.size * 0.15);
+                        ctx.font = `bold ${fontSize}px sans-serif`;
                         ctx.textAlign = 'center';
                         ctx.textBaseline = 'middle';
-                        
-                        // Zeichnet die exakte, echte Ganzzahl (1, 1, 2, 3, 5, 8...) ohne Brüche
-                        ctx.fillText(rect.size, rect.x + rect.size / 2, rect.y + rect.size / 2);
+                        ctx.fillText(s.size, s.x + s.size / 2, s.y + s.size / 2);
                     }
 
-                    // Mathematisch exakt anschliessender Bogen (die Spirale)
+                    // Goldene Spirale (Viertelkreise) zeichnen
                     ctx.beginPath();
                     ctx.strokeStyle = '#45f3ff';
-                    ctx.lineWidth = 2.5 / scale;
+                    ctx.lineWidth = 2 / scale;
+
+                    if (s.dir === 0) ctx.arc(s.x + s.size, s.y + s.size, s.size, Math.PI, 1.5 * Math.PI);
+                    else if (s.dir === 1) ctx.arc(s.x + s.size, s.y, s.size, 0.5 * Math.PI, Math.PI);
+                    else if (s.dir === 2) ctx.arc(s.x, s.y, s.size, 0, 0.5 * Math.PI);
+                    else if (s.dir === 3) ctx.arc(s.x, s.y + s.size, s.size, 1.5 * Math.PI, 0);
                     
-                    if (rect.dir === 0) ctx.arc(rect.x, rect.y + rect.size, rect.size, 1.5 * Math.PI, 0);
-                    else if (rect.dir === 1) ctx.arc(rect.x, rect.y, rect.size, 0, 0.5 * Math.PI);
-                    else if (rect.dir === 2) ctx.arc(rect.x + rect.size, rect.y, rect.size, 0.5 * Math.PI, Math.PI);
-                    else if (rect.dir === 3) ctx.arc(rect.x + rect.size, rect.y + rect.size, rect.size, Math.PI, 1.5 * Math.PI);
                     ctx.stroke();
                 }
             }
             ctx.restore();
         }
 
-        // --- MAUS ZOOM (STARR IN DIE MITTE MIT VOLLEM STOPP) ---
+        // --- MAUS ZOOM (STARR AUF DIE MITTE GERICHTET) ---
         window.addEventListener('wheel', (e) => {
             e.preventDefault();
             const zoomFactor = e.deltaY < 0 ? 1.15 : 1 / 1.15;
-            
             let newScale = scale * zoomFactor;
-            
-            // MINIMALER ZOOM-STOPP: Verhindert, dass das erste Quadrat (Grösse 1) kleiner als die Ausgangsgrösse wird
-            if (newScale >= 40) {
+
+            // STRICKTER STOPP: Verhindert, dass man weiter als bis zur innersten 1 herauszoomed
+            if (newScale > 5 && newScale < 500000) {
                 scale = newScale;
                 draw();
             }
         }, { passive: false });
 
-        // --- SMARTPHONE TOUCH ZOOM (STARR IN DIE MITTE MIT VOLLEM STOPP) ---
+        // --- SMARTPHONE TOUCH ZOOM (KORRIGIERT & FIXIERT) ---
         canvas.addEventListener('touchstart', (e) => {
             if (e.touches.length === 2) {
+                // Exakter Abstand zwischen Finger 0 und Finger 1
                 touchStartDist = Math.hypot(
                     e.touches[0].clientX - e.touches[1].clientX,
                     e.touches[0].clientY - e.touches[1].clientY
@@ -208,8 +191,8 @@
                 
                 let newScale = touchStartScale * (dist / touchStartDist);
                 
-                // Verhindert das unendliche Herauszoomen ins Negative/Nullbereich
-                if (newScale >= 40) {
+                // Stoppt beim Rauszoomen an der gleichen Grenze wie die Maus
+                if (newScale > 5 && newScale < 500000) {
                     scale = newScale;
                     draw();
                 }
