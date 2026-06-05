@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
-    <title>Echter Unendlicher Zentrums-Zoom</title>
+    <title>Perfekter Fibonacci Zentrums-Zoom</title>
     <style>
         * { box-sizing: border-box; touch-action: none; }
         body, html {
@@ -39,8 +39,8 @@
 <body>
 
     <div id="info">
-        <h1>Echter Unendlicher Radius</h1>
-        <p>📱 <b>2 Finger:</b> Zoomt starr in die Mitte<br>🖱️ <b>Mausrad:</b> Zoomt starr in die Mitte</p>
+        <h1>Exakte Fibonacci-Spirale</h1>
+        <p>📱 <b>2 Finger:</b> Starres unendliches Zoomen<br>🖱️ <b>Mausrad:</b> Starres unendliches Zoomen<br>⚠️ <i>Stoppt strikt bei 1 (keine Nullen)</i></p>
     </div>
 
     <canvas id="canvas"></canvas>
@@ -49,17 +49,17 @@
         const canvas = document.getElementById('canvas');
         const ctx = canvas.getContext('2d');
 
-        // Die mathematische Basis des Goldenen Schnitts
+        // Goldener Schnitt & Asymptotischer Pol (Fixpunkt) der exakten Fibonacci-Spirale
         const PHI = (1 + Math.sqrt(5)) / 2;
+        const POLE_X = 0.27639320225; 
+        const POLE_Y = 0.72360679774;
+
+        // Skalierungsfaktor (Zoom)
+        let scale = 150; 
         
-        // Logarithmische Basis für den nahtlosen Zoomwechsel
-        const LOG_PHI = Math.log(PHI);
-
-        // Zoom-Faktor (wird über Touch/Maus gesteuert)
-        let currentZoom = 0; 
-
+        // Touch-Gesten-Tracking
         let touchStartDist = 0;
-        let touchStartZoom = 0;
+        let touchStartScale = 150;
 
         function resize() {
             canvas.width = window.innerWidth * window.devicePixelRatio;
@@ -69,27 +69,51 @@
             draw();
         }
 
-        // Berechnet die exakte Position der Spirale relativ zum unendlichen Fixpunkt
-        function getSquareConfig(i) {
-            // Skalierung des Quadrats i im goldenen Verhältnis
-            let size = Math.pow(PHI, i);
-            let dir = ((i % 4) + 4) % 4; // Verhindert negative Modulo-Fehler
+        // Dynamische Generierung echter Fibonacci-Zahlen (Zahlfolge)
+        function getFib(n) {
+            if (n <= 0) return 1;
+            let a = 1, b = 1;
+            for (let i = 3; i <= n; i++) {
+                let c = a + b;
+                a = b;
+                b = c;
+            }
+            return b;
+        }
 
-            // Mathematische Verschiebungskonstanten, um den unendlichen Fluchtpunkt im Ursprung (0,0) zu halten
-            // Diese Werte sind die exakten Grenzwerte der geometrischen Reihe der Spirale
-            let cx = 1 / (1 + Math.pow(PHI, 2));
-            let cy = PHI / (1 + Math.pow(PHI, 2));
+        // Berechnet die korrekte geometrische Anordnung nach dem Standard-Anbaumuster
+        function getSquarePosition(n) {
+            let x = 0, y = 0;
+            if (n === 1) return { x: 0, y: 0, size: 1, dir: 0 };
+            if (n === 2) return { x: 1, y: 0, size: 1, dir: 1 };
 
-            let x = 0;
-            let y = 0;
+            // Startkoordinaten für den iterativen Aufbau ab Box 1
+            let currentX = 0, currentY = 0;
+            
+            for (let i = 3; i <= n; i++) {
+                let prevSize = getFib(i - 1);
+                let prevPrevSize = getFib(i - 2);
+                let currentSize = getFib(i);
+                let dir = (i - 1) % 4; // 0: rechts, 1: unten, 2: links, 3: oben
 
-            // Richtungsausrichtung: 0=Rechts, 1=Unten, 2=Links, 3=Oben
-            if (dir === 0) { x = -cx * size; y = -cy * size; }
-            else if (dir === 1) { x = (1 - cx) * size; y = -cy * size; }
-            else if (dir === 2) { x = (1 - cx) * size; y = (1 - cy) * size; }
-            else if (dir === 3) { x = -cx * size; y = (1 - cy) * size; }
-
-            return { x, y, size, dir };
+                // Exakte relative Anbautranslationen der Quadrate
+                if (dir === 1) { // Unten anbauen
+                    currentY += prevPrevSize;
+                } else if (dir === 2) { // Links anbauen
+                    currentX -= currentSize;
+                } else if (dir === 3) { // Oben anbauen
+                    currentY -= currentSize;
+                    currentX -= (prevSize - currentSize);
+                } else if (dir === 0) { // Rechts anbauen
+                    currentX += prevSize;
+                    currentY -= (prevSize - currentPrevSize);
+                }
+                
+                if (i === n) {
+                    return { x: currentX, y: currentY, size: currentSize, dir: dir };
+                }
+            }
+            return { x: 0, y: 0, size: 1, dir: 0 };
         }
 
         function draw() {
@@ -97,86 +121,81 @@
             ctx.fillRect(0, 0, window.innerWidth, window.innerHeight);
 
             ctx.save();
-            // Zeichne ALLES exakt zentriert in der Mitte des Bildschirms
+            // 1. Schiebe den Ursprung in die exakte Mitte des Bildschirms
             ctx.translate(window.innerWidth / 2, window.innerHeight / 2);
+            
+            // 2. Skaliere die gesamte Szene basierend auf dem Zoom
+            ctx.scale(scale, scale);
+            
+            // 3. Zentriere die Kamera auf den unendlichen Fixpunkt (Pol) der Spirale
+            ctx.translate(-POLE_X, -POLE_Y);
 
-            // Modulo-Rechnung für den unendlichen Skalierungseffekt
-            let globalScale = Math.pow(PHI, currentZoom);
-            let baseStep = Math.floor(currentZoom);
-            let fractionalZoom = currentZoom - baseStep;
+            // Bestimme das Sichtbarkeitsfenster der Quadrate anhand des aktuellen Zooms
+            let estimatedMaxGen = Math.floor(Math.log(scale) / Math.log(PHI)) + 5;
+            let maxGen = Math.max(15, estimatedMaxGen);
 
-            // Wir zeichnen von der kleinsten sichtbaren Box im Zentrum nach aussen weg
-            let startGeneration = -baseStep - 4; 
-            let endGeneration = startGeneration + 25; 
+            // WICHTIG: Die Schleife startet zwingend bei 1. Es gibt keine Generierung kleinerer Zahlen gegen 0!
+            for (let i = 1; i <= maxGen; i++) {
+                let rect = getSquarePosition(i);
+                let currentDisplaySize = rect.size * scale;
 
-            for (let g = startGeneration; g < endGeneration; g++) {
-                let config = getSquareConfig(g);
-                
-                // Wende die globale Skalierung an
-                let x = config.x * globalScale;
-                let y = config.y * globalScale;
-                let size = config.size * globalScale;
-                let dir = config.dir;
-
-                // Nur zeichnen, wenn das Quadrat im sichtbaren Bildschirmbereich liegt
-                if (size > 0.2 && size < window.innerWidth * 4) {
+                // Rendere nur Quadrate, die überhaupt ins Display passen
+                if (currentDisplaySize > 0.5 && currentDisplaySize < window.innerWidth * 5) {
                     
-                    // Zeichne das Quadrat mit einem sanften Ausfading für sehr grosse Boxen
-                    let opacity = Math.min(0.5, (window.innerWidth * 2 - size) / (window.innerWidth * 2));
-                    if (opacity < 0) opacity = 0;
+                    // Zeichne das exakt ausgerichtete Quadrat
+                    ctx.strokeStyle = `rgba(102, 252, 241, ${Math.min(0.6, currentDisplaySize / 40)})`;
+                    ctx.lineWidth = 1 / scale;
+                    ctx.strokeRect(rect.x, rect.y, rect.size, rect.size);
 
-                    ctx.strokeStyle = `rgba(102, 252, 241, ${opacity})`;
-                    ctx.lineWidth = 1.5;
-                    ctx.strokeRect(x, y, size, size);
-
-                    // Beschriftung: Berechne den echten Fibonacci-Verhältniswert für die Box
-                    // Da wir unendlich tief gehen, nutzen wir die gerundete relative Fibonacci-Ebene
-                    if (size > 30 && size < window.innerWidth * 1.2) {
-                        ctx.fillStyle = `rgba(197, 160, 89, ${opacity * 1.8})`;
-                        let fontSize = Math.min(24, Math.max(10, size * 0.12));
+                    // Beschriftung: Zeigt NUR echte Fibonacci-Ganzzahlen an
+                    if (currentDisplaySize > 25 && currentDisplaySize < window.innerWidth * 1.2) {
+                        ctx.fillStyle = 'rgba(197, 160, 89, 0.9)';
+                        let fontSize = Math.max(10 / scale, rect.size * 0.14);
                         ctx.font = `bold ${fontSize}px monospace`;
                         ctx.textAlign = 'center';
                         ctx.textBaseline = 'middle';
                         
-                        // Generiert den echten Fibonacci-Wert relativ zur Skalierungsebene
-                        let fibValue = Math.round(Math.pow(PHI, g + 13)); 
-                        ctx.fillText(fibValue.toLocaleString('de-CH'), x + size / 2, y + size / 2);
+                        // Zeichnet die exakte, echte Ganzzahl (1, 1, 2, 3, 5, 8...) ohne Brüche
+                        ctx.fillText(rect.size, rect.x + rect.size / 2, rect.y + rect.size / 2);
                     }
 
-                    // Zeichne den Spiralbogen (Viertelkreis) passend zur Richtung
+                    // Mathematisch exakt anschliessender Bogen (die Spirale)
                     ctx.beginPath();
                     ctx.strokeStyle = '#45f3ff';
-                    ctx.lineWidth = 2.5;
-                    if (dir === 0) ctx.arc(x, y + size, size, 1.5 * Math.PI, 0);
-                    else if (dir === 1) ctx.arc(x, y, size, 0, 0.5 * Math.PI);
-                    else if (dir === 2) ctx.arc(x + size, y, size, 0.5 * Math.PI, Math.PI);
-                    else if (dir === 3) ctx.arc(x + size, y + size, size, Math.PI, 1.5 * Math.PI);
+                    ctx.lineWidth = 2.5 / scale;
+                    
+                    if (rect.dir === 0) ctx.arc(rect.x, rect.y + rect.size, rect.size, 1.5 * Math.PI, 0);
+                    else if (rect.dir === 1) ctx.arc(rect.x, rect.y, rect.size, 0, 0.5 * Math.PI);
+                    else if (rect.dir === 2) ctx.arc(rect.x + rect.size, rect.y, rect.size, 0.5 * Math.PI, Math.PI);
+                    else if (rect.dir === 3) ctx.arc(rect.x + rect.size, rect.y + rect.size, rect.size, Math.PI, 1.5 * Math.PI);
                     ctx.stroke();
                 }
             }
             ctx.restore();
         }
 
-        // --- MAUS ZOOM (STARR AUF DIE MITTE GERENTET) ---
+        // --- MAUS ZOOM (STARR IN DIE MITTE MIT VOLLEM STOPP) ---
         window.addEventListener('wheel', (e) => {
             e.preventDefault();
-            // Ändert das Zoomlevel linear im logarithmischen Raum von PHI
-            if (e.deltaY < 0) {
-                currentZoom += 0.15; // Reinzoomen
-            } else {
-                currentZoom -= 0.15; // Rauszoomen
+            const zoomFactor = e.deltaY < 0 ? 1.15 : 1 / 1.15;
+            
+            let newScale = scale * zoomFactor;
+            
+            // MINIMALER ZOOM-STOPP: Verhindert, dass das erste Quadrat (Grösse 1) kleiner als die Ausgangsgrösse wird
+            if (newScale >= 40) {
+                scale = newScale;
+                draw();
             }
-            draw();
         }, { passive: false });
 
-        // --- SMARTPHONE TOUCH ZOOM (STARR AUF DIE MITTE GERICHTET) ---
+        // --- SMARTPHONE TOUCH ZOOM (STARR IN DIE MITTE MIT VOLLEM STOPP) ---
         canvas.addEventListener('touchstart', (e) => {
             if (e.touches.length === 2) {
                 touchStartDist = Math.hypot(
                     e.touches[0].clientX - e.touches[1].clientX,
                     e.touches[0].clientY - e.touches[1].clientY
                 );
-                touchStartZoom = currentZoom;
+                touchStartScale = scale;
             }
         }, { passive: true });
 
@@ -187,11 +206,13 @@
                     e.touches[0].clientY - e.touches[1].clientY
                 );
                 
-                // Verhältnisberechnung im logarithmischen PHI-Raum für seidenweichen Zoom
-                let factor = dist / touchStartDist;
-                currentZoom = touchStartZoom + (Math.log(factor) / LOG_PHI);
+                let newScale = touchStartScale * (dist / touchStartDist);
                 
-                draw();
+                // Verhindert das unendliche Herauszoomen ins Negative/Nullbereich
+                if (newScale >= 40) {
+                    scale = newScale;
+                    draw();
+                }
             }
         }, { passive: true });
 
