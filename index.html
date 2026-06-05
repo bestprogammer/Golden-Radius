@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
-    <title>Zentrierter Unendlicher Goldener Zoom</title>
+    <title>Echter Unendlicher Zentrums-Zoom</title>
     <style>
         * { box-sizing: border-box; touch-action: none; }
         body, html {
@@ -14,7 +14,6 @@
             overflow: hidden;
             background-color: #0b0c10;
             font-family: system-ui, -apple-system, sans-serif;
-            color: #fff;
         }
         canvas {
             display: block;
@@ -40,8 +39,8 @@
 <body>
 
     <div id="info">
-        <h1>Starrer Zentrums-Zoom</h1>
-        <p>📱 <b>2 Finger:</b> Zoomt starr in die Mitte<br>👆 <b>1 Finger:</b> Spirale verschieben<br>🖱️ <b>Mausrad:</b> Zoomt starr in die Mitte</p>
+        <h1>Echter Unendlicher Radius</h1>
+        <p>📱 <b>2 Finger:</b> Zoomt starr in die Mitte<br>🖱️ <b>Mausrad:</b> Zoomt starr in die Mitte</p>
     </div>
 
     <canvas id="canvas"></canvas>
@@ -50,21 +49,17 @@
         const canvas = document.getElementById('canvas');
         const ctx = canvas.getContext('2d');
 
+        // Die mathematische Basis des Goldenen Schnitts
         const PHI = (1 + Math.sqrt(5)) / 2;
         
-        // Asymptotischer Fixpunkt (Zentrum) der Goldenen Spirale
-        const CX = 1 + 1 / (PHI * Math.sqrt(5));
-        const CY = 1 / Math.sqrt(5);
+        // Logarithmische Basis für den nahtlosen Zoomwechsel
+        const LOG_PHI = Math.log(PHI);
 
-        let scale = 100; // Start-Zoom
-        let offsetX = 0;
-        let offsetY = 0;
-        
-        let isDragging = false;
-        let startX = 0, startY = 0;
+        // Zoom-Faktor (wird über Touch/Maus gesteuert)
+        let currentZoom = 0; 
 
         let touchStartDist = 0;
-        let touchStartScale = 1;
+        let touchStartZoom = 0;
 
         function resize() {
             canvas.width = window.innerWidth * window.devicePixelRatio;
@@ -74,141 +69,134 @@
             draw();
         }
 
+        // Berechnet die exakte Position der Spirale relativ zum unendlichen Fixpunkt
+        function getSquareConfig(i) {
+            // Skalierung des Quadrats i im goldenen Verhältnis
+            let size = Math.pow(PHI, i);
+            let dir = ((i % 4) + 4) % 4; // Verhindert negative Modulo-Fehler
+
+            // Mathematische Verschiebungskonstanten, um den unendlichen Fluchtpunkt im Ursprung (0,0) zu halten
+            // Diese Werte sind die exakten Grenzwerte der geometrischen Reihe der Spirale
+            let cx = 1 / (1 + Math.pow(PHI, 2));
+            let cy = PHI / (1 + Math.pow(PHI, 2));
+
+            let x = 0;
+            let y = 0;
+
+            // Richtungsausrichtung: 0=Rechts, 1=Unten, 2=Links, 3=Oben
+            if (dir === 0) { x = -cx * size; y = -cy * size; }
+            else if (dir === 1) { x = (1 - cx) * size; y = -cy * size; }
+            else if (dir === 2) { x = (1 - cx) * size; y = (1 - cy) * size; }
+            else if (dir === 3) { x = -cx * size; y = (1 - cy) * size; }
+
+            return { x, y, size, dir };
+        }
+
         function draw() {
             ctx.fillStyle = '#0b0c10';
             ctx.fillRect(0, 0, window.innerWidth, window.innerHeight);
 
             ctx.save();
-            // In die Bildschirmmitte schieben + Benutzer-Verschiebung
-            ctx.translate(window.innerWidth / 2 + offsetX, window.innerHeight / 2 + offsetY);
-            ctx.scale(scale, scale);
-            
-            // Verschiebe den Rotations- und Skalierungsmittelpunkt auf das mathematische Zentrum der Spirale
-            ctx.translate(-CX, -CY);
+            // Zeichne ALLES exakt zentriert in der Mitte des Bildschirms
+            ctx.translate(window.innerWidth / 2, window.innerHeight / 2);
 
-            // Bestimme dynamisch die Generationen basierend auf dem aktuellen Zoomfaktor
-            let baseGen = Math.floor(Math.log(scale) / Math.log(PHI));
-            let minGen = baseGen - 15;
-            let maxGen = baseGen + 20;
+            // Modulo-Rechnung für den unendlichen Skalierungseffekt
+            let globalScale = Math.pow(PHI, currentZoom);
+            let baseStep = Math.floor(currentZoom);
+            let fractionalZoom = currentZoom - baseStep;
 
-            let x = 0;
-            let y = 0;
+            // Wir zeichnen von der kleinsten sichtbaren Box im Zentrum nach aussen weg
+            let startGeneration = -baseStep - 4; 
+            let endGeneration = startGeneration + 25; 
 
-            for (let i = 1; i <= maxGen; i++) {
-                let size = Math.pow(PHI, i - 1);
-                let dir = (i - 1) % 4; // 0: rechts, 1: unten, 2: links, 3: oben
+            for (let g = startGeneration; g < endGeneration; g++) {
+                let config = getSquareConfig(g);
+                
+                // Wende die globale Skalierung an
+                let x = config.x * globalScale;
+                let y = config.y * globalScale;
+                let size = config.size * globalScale;
+                let dir = config.dir;
 
-                let qx = x;
-                let qy = y;
+                // Nur zeichnen, wenn das Quadrat im sichtbaren Bildschirmbereich liegt
+                if (size > 0.2 && size < window.innerWidth * 4) {
+                    
+                    // Zeichne das Quadrat mit einem sanften Ausfading für sehr grosse Boxen
+                    let opacity = Math.min(0.5, (window.innerWidth * 2 - size) / (window.innerWidth * 2));
+                    if (opacity < 0) opacity = 0;
 
-                if (dir === 0) { qy -= size; x += size; }
-                else if (dir === 1) { qx -= size; y += size; }
-                else if (dir === 2) { qx -= size; qy -= size; x -= size; }
-                else if (dir === 3) { y -= size; }
+                    ctx.strokeStyle = `rgba(102, 252, 241, ${opacity})`;
+                    ctx.lineWidth = 1.5;
+                    ctx.strokeRect(x, y, size, size);
 
-                if (i >= minGen) {
-                    let currentDisplaySize = size * scale;
-
-                    if (currentDisplaySize > 0.5 && currentDisplaySize < window.innerWidth * 5) {
-                        // Quadrate zeichnen
-                        ctx.strokeStyle = `rgba(102, 252, 241, ${Math.min(0.6, currentDisplaySize / 50)})`;
-                        ctx.lineWidth = 1 / scale;
-                        ctx.strokeRect(qx, qy, size, size);
-
-                        // Beschriftung der Quadrate
-                        if (currentDisplaySize > 25 && currentDisplaySize < window.innerWidth * 1.2) {
-                            ctx.fillStyle = 'rgba(197, 160, 89, 0.8)';
-                            let fontSize = Math.max(10 / scale, size * 0.12);
-                            ctx.font = `${fontSize}px monospace`;
-                            ctx.textAlign = 'center';
-                            ctx.textBaseline = 'middle';
-                            
-                            let label = size < 1 ? size.toFixed(2) : Math.round(size).toString();
-                            ctx.fillText(label, qx + size / 2, qy + size / 2);
-                        }
-
-                        // Goldene Spirale (Bogen)
-                        ctx.beginPath();
-                        ctx.strokeStyle = '#45f3ff';
-                        ctx.lineWidth = 2.5 / scale;
-                        if (dir === 0) ctx.arc(qx, qy + size, size, 1.5 * Math.PI, 0);
-                        else if (dir === 1) ctx.arc(qx, qy, size, 0, 0.5 * Math.PI);
-                        else if (dir === 2) ctx.arc(qx + size, qy, size, 0.5 * Math.PI, Math.PI);
-                        else if (dir === 3) ctx.arc(qx + size, qy + size, size, Math.PI, 1.5 * Math.PI);
-                        ctx.stroke();
+                    // Beschriftung: Berechne den echten Fibonacci-Verhältniswert für die Box
+                    // Da wir unendlich tief gehen, nutzen wir die gerundete relative Fibonacci-Ebene
+                    if (size > 30 && size < window.innerWidth * 1.2) {
+                        ctx.fillStyle = `rgba(197, 160, 89, ${opacity * 1.8})`;
+                        let fontSize = Math.min(24, Math.max(10, size * 0.12));
+                        ctx.font = `bold ${fontSize}px monospace`;
+                        ctx.textAlign = 'center';
+                        ctx.textBaseline = 'middle';
+                        
+                        // Generiert den echten Fibonacci-Wert relativ zur Skalierungsebene
+                        let fibValue = Math.round(Math.pow(PHI, g + 13)); 
+                        ctx.fillText(fibValue.toLocaleString('de-CH'), x + size / 2, y + size / 2);
                     }
+
+                    // Zeichne den Spiralbogen (Viertelkreis) passend zur Richtung
+                    ctx.beginPath();
+                    ctx.strokeStyle = '#45f3ff';
+                    ctx.lineWidth = 2.5;
+                    if (dir === 0) ctx.arc(x, y + size, size, 1.5 * Math.PI, 0);
+                    else if (dir === 1) ctx.arc(x, y, size, 0, 0.5 * Math.PI);
+                    else if (dir === 2) ctx.arc(x + size, y, size, 0.5 * Math.PI, Math.PI);
+                    else if (dir === 3) ctx.arc(x + size, y + size, size, Math.PI, 1.5 * Math.PI);
+                    ctx.stroke();
                 }
             }
             ctx.restore();
         }
 
-        // --- MAUS EVENTS (ZENTRIERTER ZOOM) ---
+        // --- MAUS ZOOM (STARR AUF DIE MITTE GERENTET) ---
         window.addEventListener('wheel', (e) => {
             e.preventDefault();
-            // Zoom-Faktor berechnen
-            const zoomFactor = e.deltaY < 0 ? 1.15 : 1 / 1.15;
-            
-            // Reiner Zentrums-Zoom: Multipliziert den Zoom direkt, ohne den Offset zu verschieben
-            scale *= zoomFactor;
-            
+            // Ändert das Zoomlevel linear im logarithmischen Raum von PHI
+            if (e.deltaY < 0) {
+                currentZoom += 0.15; // Reinzoomen
+            } else {
+                currentZoom -= 0.15; // Rauszoomen
+            }
             draw();
         }, { passive: false });
 
-        canvas.addEventListener('mousedown', (e) => {
-            isDragging = true;
-            startX = e.clientX - offsetX;
-            startY = e.clientY - offsetY;
-        });
-
-        window.addEventListener('mousemove', (e) => {
-            if (!isDragging) return;
-            offsetX = e.clientX - startX;
-            offsetY = e.clientY - startY;
-            draw();
-        });
-
-        window.addEventListener('mouseup', () => isDragging = false);
-
-        // --- MOBILE TOUCH EVENTS (ZENTRIERTER ZOOM) ---
+        // --- SMARTPHONE TOUCH ZOOM (STARR AUF DIE MITTE GERICHTET) ---
         canvas.addEventListener('touchstart', (e) => {
-            if (e.touches.length === 1) {
-                isDragging = true;
-                startX = e.touches[0].clientX - offsetX;
-                startY = e.touches[0].clientY - offsetY;
-            } else if (e.touches.length === 2) {
-                isDragging = false;
-                // Distanz zwischen den beiden Fingern für die Skalierung messen
+            if (e.touches.length === 2) {
                 touchStartDist = Math.hypot(
                     e.touches[0].clientX - e.touches[1].clientX,
                     e.touches[0].clientY - e.touches[1].clientY
                 );
-                touchStartScale = scale;
+                touchStartZoom = currentZoom;
             }
         }, { passive: true });
 
         canvas.addEventListener('touchmove', (e) => {
-            if (isDragging && e.touches.length === 1) {
-                offsetX = e.touches[0].clientX - startX;
-                offsetY = e.touches[0].clientY - startY;
-                draw();
-            } else if (e.touches.length === 2) {
+            if (e.touches.length === 2 && touchStartDist > 0) {
                 const dist = Math.hypot(
                     e.touches[0].clientX - e.touches[1].clientX,
                     e.touches[0].clientY - e.touches[1].clientY
                 );
                 
-                const newScale = touchStartScale * (dist / touchStartDist);
+                // Verhältnisberechnung im logarithmischen PHI-Raum für seidenweichen Zoom
+                let factor = dist / touchStartDist;
+                currentZoom = touchStartZoom + (Math.log(factor) / LOG_PHI);
                 
-                // Zoom-Grenzen einhalten und starr auf die Mitte anwenden
-                if (newScale > 5 && newScale < 1e16) {
-                    scale = newScale;
-                    draw();
-                }
+                draw();
             }
         }, { passive: true });
 
-        canvas.addEventListener('touchend', () => { isDragging = false; });
-        canvas.addEventListener('touchcancel', () => { isDragging = false; });
+        canvas.addEventListener('touchend', () => { touchStartDist = 0; });
+        canvas.addEventListener('touchcancel', () => { touchStartDist = 0; });
 
         window.addEventListener('resize', resize);
         resize();
