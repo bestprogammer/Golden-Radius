@@ -2,10 +2,10 @@
 <html lang="de">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
     <title>Unendlicher Goldener Radius Zoom</title>
     <style>
-        * { box-sizing: border-box; }
+        * { box-sizing: border-box; touch-action: none; }
         body, html {
             margin: 0;
             padding: 0;
@@ -20,28 +20,27 @@
             display: block;
             width: 100vw;
             height: 100vh;
-            cursor: grab;
         }
-        canvas:active { cursor: grabbing; }
         #info {
             position: absolute;
             top: 20px;
             left: 20px;
-            background: rgba(0,0,0,0.7);
-            padding: 15px;
+            background: rgba(0,0,0,0.8);
+            padding: 12px;
             border-radius: 8px;
             pointer-events: none;
-            max-width: 300px;
+            max-width: 280px;
+            border: 1px solid #333;
         }
-        h1 { margin: 0 0 5px 0; font-size: 16px; color: #ffd700; }
-        p { margin: 0; font-size: 12px; color: #ccc; line-height: 1.4; }
+        h1 { margin: 0 0 5px 0; font-size: 14px; color: #ffd700; }
+        p { margin: 0; font-size: 11px; color: #ccc; line-height: 1.4; }
     </style>
 </head>
 <body>
 
     <div id="info">
         <h1>Unendliche Goldene Spirale</h1>
-        <p>📱 <b>2 Finger:</b> Zoomen & Drehen<br>🖱️ <b>Mausrad:</b> Zoomen<br>👆 <b>1 Finger / Ziehen:</b> Verschieben</p>
+        <p>📱 <b>2 Finger:</b> Zoomen & Skalieren<br>👆 <b>1 Finger / Ziehen:</b> Verschieben<br>🖱️ <b>Mausrad:</b> Zoomen</p>
     </div>
 
     <canvas id="canvas"></canvas>
@@ -50,61 +49,49 @@
         const canvas = document.getElementById('canvas');
         const ctx = canvas.getContext('2d');
 
-        // Golden Ratio Konstante
         const PHI = (1 + Math.sqrt(5)) / 2;
 
-        // Transformations-Status
         let scale = 1;
         let offsetX = 0;
         let offsetY = 0;
+        
         let isDragging = false;
-        let startX, startY;
+        let startX = 0, startY = 0;
 
-        // Touch-Tracking für Mobilgeräte
         let touchStartDist = 0;
         let touchStartScale = 1;
 
-        // Canvas Grösse anpassen
         function resize() {
             canvas.width = window.innerWidth * window.devicePixelRatio;
             canvas.height = window.innerHeight * window.devicePixelRatio;
+            ctx.resetTransform();
             ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
             draw();
         }
 
-        // Fibonacci-Zahlen generieren
+        // Schnelle Fibonacci-Berechnung via Binet-Formel zur Performance-Steigerung
         function getFib(n) {
-            let a = 1, b = 1;
-            for (let i = 3; i <= n; i++) {
-                let c = a + b;
-                a = b;
-                b = c;
-            }
-            return n === 0 ? 0 : b;
+            return Math.round((Math.pow(PHI, n) - Math.pow(-PHI, -n)) / Math.sqrt(5));
         }
 
-        // Haupt-Zeichenfunktion
         function draw() {
             ctx.fillStyle = '#111';
             ctx.fillRect(0, 0, window.innerWidth, window.innerHeight);
 
             ctx.save();
-            // In die Mitte des Bildschirms verschieben + Benutzer-Verschiebung
             ctx.translate(window.innerWidth / 2 + offsetX, window.innerHeight / 2 + offsetY);
             ctx.scale(scale, scale);
 
-            // Dynamisch berechnen, wie viele Quadrate gezeichnet werden müssen basierend auf dem Zoom
-            // Verhindert Performance-Einbrüche und sorgt für "Unendlichkeit"
+            // Dynamisches Berechnungsfenster für den unendlichen Zoom
             let minGen = 1;
-            let maxGen = 25;
+            let maxGen = 30;
 
-            if (scale > 2) {
+            if (scale > 1) {
                 let shift = Math.floor(Math.log(scale) / Math.log(PHI));
                 minGen += shift;
                 maxGen += shift;
             }
 
-            // Startpunkt zurücksetzen für die Spirale
             let x = 0;
             let y = 0;
 
@@ -112,7 +99,6 @@
                 let size = getFib(i);
                 let dir = i % 4; // 0: rechts, 1: unten, 2: links, 3: oben
 
-                // Berechne die Positionen der Quadrate
                 let qx = x;
                 let qy = y;
 
@@ -121,29 +107,27 @@
                 else if (dir === 2) { qx -= size; qy -= size; x -= size; }
                 else if (dir === 3) { y -= size; }
 
-                // Nur zeichnen, wenn es im sichtbaren Generationen-Fenster ist
                 if (i >= minGen) {
-                    // Quadrat zeichnen
-                    ctx.strokeStyle = `rgba(255, 215, 0, ${Math.min(1, (maxGen - i) / 5)})`;
-                    ctx.lineWidth = 1.5 / scale;
+                    // Quadrate zeichnen
+                    ctx.strokeStyle = `rgba(255, 215, 0, ${Math.min(1, (maxGen - i) / 6)})`;
+                    ctx.lineWidth = 1 / scale;
                     ctx.strokeRect(qx, qy, size, size);
 
-                    // Beschriftung (Quadrat-Grösse)
-                    ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
-                    let fontSize = Math.max(10 / scale, size * 0.15);
-                    ctx.font = `${fontSize}px sans-serif`;
-                    ctx.textAlign = 'center';
-                    ctx.textBaseline = 'middle';
-                    
-                    // Text nur anzeigen, wenn das Quadrat gross genug auf dem Bildschirm ist
-                    if (size * scale > 15) {
+                    // Beschriftung (Fibonacci-Zahl)
+                    let currentDisplaySize = size * scale;
+                    if (currentDisplaySize > 20 && currentDisplaySize < window.innerWidth * 1.5) {
+                        ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+                        let fontSize = Math.max(11 / scale, size * 0.12);
+                        ctx.font = `${fontSize}px sans-serif`;
+                        ctx.textAlign = 'center';
+                        ctx.textBaseline = 'middle';
                         ctx.fillText(size, qx + size / 2, qy + size / 2);
                     }
 
-                    // Bogen (Spirale) im Quadrat zeichnen
+                    // Spirale zeichnen
                     ctx.beginPath();
                     ctx.strokeStyle = '#00e5ff';
-                    ctx.lineWidth = 3 / scale;
+                    ctx.lineWidth = 2 / scale;
                     
                     if (dir === 0) ctx.arc(qx, qy + size, size, 1.5 * Math.PI, 0);
                     else if (dir === 1) ctx.arc(qx, qy, size, 0, 0.5 * Math.PI);
@@ -155,12 +139,10 @@
             ctx.restore();
         }
 
-        // --- EVENTS FÜR MAUS (DESKTOP) ---
+        // --- MAUS EVENTS (DESKTOP) ---
         window.addEventListener('wheel', (e) => {
             e.preventDefault();
-            const zoomFactor = 1.1;
-            
-            // Zoom-Zentrum auf Mausposition setzen
+            const zoomFactor = 1.12;
             const mouseX = e.clientX - window.innerWidth / 2;
             const mouseY = e.clientY - window.innerHeight / 2;
 
@@ -191,7 +173,7 @@
 
         window.addEventListener('mouseup', () => isDragging = false);
 
-        // --- EVENTS FÜR TOUCH (MOBILE / 2-FINGER ZOOM) ---
+        // --- TOUCH EVENTS FÜR SMARTPHONES (KORRIGIERT) ---
         canvas.addEventListener('touchstart', (e) => {
             if (e.touches.length === 1) {
                 isDragging = true;
@@ -205,7 +187,7 @@
                 );
                 touchStartScale = scale;
             }
-        });
+        }, { passive: true });
 
         canvas.addEventListener('touchmove', (e) => {
             if (isDragging && e.touches.length === 1) {
@@ -218,24 +200,24 @@
                     e.touches[0].clientY - e.touches[1].clientY
                 );
                 
-                // Zentrum zwischen den beiden Fingern berechnen
                 const midX = (e.touches[0].clientX + e.touches[1].clientX) / 2 - window.innerWidth / 2;
                 const midY = (e.touches[0].clientY + e.touches[1].clientY) / 2 - window.innerHeight / 2;
 
                 const newScale = touchStartScale * (dist / touchStartDist);
-                const scaleRatio = newScale / scale;
-
-                scale = newScale;
-                offsetX -= (midX - offsetX) * (scaleRatio - 1);
-                offsetY -= (midY - offsetY) * (scaleRatio - 1);
-
-                draw();
+                // Sicherheitsgrenzen für extremen Zoom
+                if (newScale > 0.01 && newScale < 1e15) {
+                    const scaleRatio = newScale / scale;
+                    scale = newScale;
+                    offsetX -= (midX - offsetX) * (scaleRatio - 1);
+                    offsetY -= (midY - offsetY) * (scaleRatio - 1);
+                    draw();
+                }
             }
-        });
+        }, { passive: true });
 
-        canvas.addEventListener('touchend', () => { isDragging = false; });
+        canvas.addEventListener('touchend', () => { isDragging = false; touchStartDist = 0; });
+        canvas.addEventListener('touchcancel', () => { isDragging = false; });
 
-        // Initialisierung
         window.addEventListener('resize', resize);
         resize();
     </script>
